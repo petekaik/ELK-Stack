@@ -1,0 +1,71 @@
+version: "2"
+
+services:
+  elasticsearch:
+    image: petekaik/elasticsearch-singlenode
+    volumes:
+      - ${ES_CONF}:/usr/share/elasticsearch/config/elasticsearch.yml:ro
+      - elasticsearch:/usr/share/elasticsearch/data
+    ports:
+      - ${ES_REST_PORT}:9200
+      - ${ES_NODES_PORT}:9300
+    environment:
+      ES_JAVA_OPTS: "-Xmx256m -Xms256m"
+    networks:
+      - elk
+    container_name: elasticsearch
+    hostname: elasticsearch
+    restart: always
+
+  logstash:
+    image: petekaik/logstash-healthcheck
+    volumes:
+      - ${LS_CONF}:/usr/share/logstash/config/logstash.yml:ro
+      - ${LS_PIPELINE}:/usr/share/logstash/pipeline:ro
+    ports:
+      - ${LS_PORT}:5000/udp
+    environment:
+      LS_JAVA_OPTS: "-Xmx256m -Xms256m"
+    networks:
+      - elk
+    container_name: logstash
+    hostname: logstash
+    depends_on:
+      - elasticsearch
+    restart: always
+
+  logspout:
+    image: bekt/logspout-logstash
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      ROUTE_URIS: logstash://logstash:${LS_PORT}
+    networks:
+      - elk
+    container_name: logspout
+    hostname: logspout
+    depends_on:
+      - logstash
+    restart: always
+
+  kibana:
+    image: petekaik/kibana-healthcheck
+    volumes:
+      - ${KIB_CONF}:/usr/share/kibana/config:ro
+    ports:
+      - ${KIB_PORT}:5601
+    networks:
+      - elk
+    container_name: kibana
+    hostname: kibana
+    depends_on:
+      - elasticsearch
+    restart: always
+
+volumes:
+  elasticsearch:
+    driver: local
+
+networks:
+  elk:
+    driver: bridge
